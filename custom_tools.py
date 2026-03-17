@@ -1,105 +1,66 @@
 from __future__ import annotations
-import inspect
+
 import logging
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
 CUSTOM_TOOLS_REGISTRY: dict[str, Callable[..., Any]] = {}
 
+_fallback_memory: Any = None
 
-def register_tool(name: str):
-    """Decorator to register a function as a tool under the given name."""
+
+def get_default_memory() -> Any:
+    """
+    Memory used by memory_ingest / memory_query tools.
+    - If the current project (see projects.registry) has a registered memory, that is used.
+    - Otherwise a fallback InMemoryMemory is used so tools still work without a project.
+    ADK memory (load_memory, preload_memory) is separate and always available to agents via YAML.
+    """
+    global _fallback_memory
+    try:
+        from projects.registry import get_registry
+        mem = get_registry().get_current_memory()
+        if mem is not None:
+            return mem
+    except Exception:
+        pass
+    if _fallback_memory is None:
+        from abstractions.in_memory_memory import InMemoryMemory
+        _fallback_memory = InMemoryMemory(max_entries=100)
+    return _fallback_memory
+
+
+def register_tool(name: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Register a function as a tool under the given name."""
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        if name in CUSTOM_TOOLS_REGISTRY:
-            logger.warning("Overwriting existing tool registration: %s", name)
         CUSTOM_TOOLS_REGISTRY[name] = func
         return func
 
     return decorator
 
 
-def _load_adk_builtin(name: str) -> Any | None:
-    try:
-        import google.adk.tools as adk_tools
-    except ImportError:
-        return None
-
-    # ADK exposes built-ins via lazy __getattr__; __all__ lists valid names.
-    if name not in getattr(adk_tools, "__all__", ()):
-        return None
-
-    try:
-        obj = getattr(adk_tools, name)
-    except AttributeError:
-        return None
-    except Exception as e:
-        logger.warning("Failed to load ADK built-in tool %s: %s", name, e)
-        return None
-
-    # BaseTool subclasses often need instantiation; pre-built instances are returned as-is.
-    if inspect.isclass(obj):
-        try:
-            return obj()
-        except (TypeError, Exception) as e:
-            # Class requires constructor args or is abstract — use dotted import in YAML.
-            logger.debug(
-                "ADK name %s is not usable as zero-arg tool (%s); skip or use import path.",
-                name,
-                e,
-            )
-            return None
-    return obj
-
-
-def list_adk_builtin_tool_names() -> list[str]:
+def get_tool(name: str) -> Any:
     """
-    Names of tools exposed by google.adk.tools that developers can list in agents_config
-    (e.g. tools: [google_search, url_context]). Safe to call without importing every tool.
-    """
-    try:
-        import google.adk.tools as adk_tools
-
-        return list(getattr(adk_tools, "__all__", []))
-    except ImportError:
-        return []
-
-
-def get_tool(name: str) -> Any | None:
-    """
-    Look up a tool by name: first custom registry, then ADK built-ins from google.adk.tools.
-    Returns a callable (function tool) or BaseTool instance, or None.
+    Resolve a tool by name. Checks custom registry first, then ADK built-ins (load_memory, preload_memory).
+    Returns the callable or ADK tool instance, or None if not found.
     """
     if name in CUSTOM_TOOLS_REGISTRY:
         return CUSTOM_TOOLS_REGISTRY[name]
-    return _load_adk_builtin(name)
+    try:
+        from google.adk import tools as adk_tools
+        if hasattr(adk_tools, name):
+            return getattr(adk_tools, name)
+    except Exception:
+        pass
+    return None
 
 
-def get_tools_by_names(names: list[str]) -> list[Any]:
-    """
-    Resolve a list of tool names to tools. Uses custom registry then ADK built-ins.
-    Skips unknown names and logs a warning.
-    """
-    result = []
-    for n in names:
-        t = get_tool(n)
-        if t is not None:
-            result.append(t)
-        else:
-            logger.warning("Tool not found (custom or ADK built-in): %s", n)
-    return result
-
-
-############################## Example custom tools ##############################
-
-
-@register_tool("echo")
-def echo(message: str) -> dict[str, str]:
-    """
-    Echoes the given message back. Useful for testing the tool pipeline.
-    """
-    return {"status": "success", "result": message}
+def list_adk_builtin_tool_names() -> list[str]:
+    """Return known ADK built-in tool names (for reference in config)."""
+    return ["load_memory", "preload_memory"]
 
 
 @register_tool("add_numbers")
@@ -108,3 +69,27 @@ def add_numbers(a: float, b: float) -> dict[str, Any]:
     Adds two numbers.
     """
     return {"status": "success", "result": a + b}
+
+
+############################## Memory tools (abstract memory integration) ##############################
+
+
+@register_tool("memory_ingest")
+async def memory_ingest(text: str, timestamp: str | None = None) -> dict[str, Any]:
+    """
+    Store a message in the shared memory. Use before or after answering so future queries can use this context.
+    """
+    ts = timestamp or datetime.now(timezone.utc).isoformat()
+    mem = get_default_memory()
+    await mem.ingest(text=text, timestamp=ts)
+    return {"status": "success", "message": "Ingested into memory."}
+
+
+@register_tool("memory_query")
+async def memory_query(query: str, limit: int = 5) -> dict[str, Any]:
+    """
+    Query the shared memory for relevant context. Returns recent or matching entries for the given query.
+    """
+    mem = get_default_memory()
+    result = await mem.query(query=query, limit=limit)
+    return {"status": "success", "context": result}

@@ -1,0 +1,112 @@
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ProjectConfig:
+    """
+    Configuration for one project. Projects make the framework theirs by adding
+    their own memory, tools, and data.
+
+    - memory_factory: Optional callable that returns a BaseMemory (e.g. Graphiti, Mem0).
+      If None, the project uses only ADK memory (load_memory, preload_memory, session state, memory bank).
+    - extra_tool_names: Optional list of tool names this project adds (must be registered in custom_tools or ADK).
+    - data: Optional project-specific config or paths.
+    """
+
+    project_id: str
+    name: str = ""
+    memory_factory: Callable[[], Any] | None = None
+    extra_tool_names: list[str] = field(default_factory=list)
+    data: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            self.name = self.project_id
+
+
+class ProjectRegistry:
+    """Registry of projects. Current project is used for get_default_memory() and project-specific tools."""
+
+    def __init__(self) -> None:
+        self._projects: dict[str, ProjectConfig] = {}
+        self._current_id: str | None = None
+        self._current_memory: Any = None  # Cached instance from current project's memory_factory
+
+    def register(self, config: ProjectConfig) -> None:
+        """Register a project by its project_id."""
+        self._projects[config.project_id] = config
+        logger.debug("Registered project: %s", config.project_id)
+
+    def get(self, project_id: str) -> ProjectConfig | None:
+        """Get a project config by id."""
+        return self._projects.get(project_id)
+
+    def set_current(self, project_id: str | None) -> None:
+        """Set the current project (e.g. from config or env). Clears cached project memory."""
+        self._current_id = project_id
+        self._current_memory = None
+
+    def get_current_id(self) -> str | None:
+        """Current project id, if set."""
+        return self._current_id
+
+    def get_current(self) -> ProjectConfig | None:
+        """Current project config, if set."""
+        if self._current_id is None:
+            return None
+        return self._projects.get(self._current_id)
+
+    def get_current_memory(self) -> Any | None:
+        """
+        Memory for the current project, if the project has a memory_factory.
+        Returns None when no project or project has no memory (use ADK-only).
+        """
+        proj = self.get_current()
+        if proj is None or proj.memory_factory is None:
+            return None
+        if self._current_memory is None:
+            try:
+                self._current_memory = proj.memory_factory()
+            except Exception as e:
+                logger.warning("Failed to create memory for project %s: %s", self._current_id, e)
+                return None
+        return self._current_memory
+
+    def list_project_ids(self) -> list[str]:
+        """Return registered project ids."""
+        return list(self._projects.keys())
+
+
+# Global registry and helpers
+_registry = ProjectRegistry()
+
+
+def register_project(config: ProjectConfig) -> None:
+    """Register a project. Call at startup or in project modules."""
+    _registry.register(config)
+
+
+def set_current_project_id(project_id: str | None) -> None:
+    """Set the current project (from agents_config project field or env PROJECT_ID)."""
+    _registry.set_current(project_id)
+
+
+def get_current_project_id() -> str | None:
+    """Current project id."""
+    return _registry.get_current_id()
+
+
+def get_current_project() -> ProjectConfig | None:
+    """Current project config."""
+    return _registry.get_current()
+
+
+def get_registry() -> ProjectRegistry:
+    """Access the global registry (e.g. to register projects)."""
+    return _registry

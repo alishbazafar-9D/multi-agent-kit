@@ -45,9 +45,8 @@ class WorkflowDefinition(BaseModel):
     type: Literal["sequential", "parallel", "loop"] = Field(
         ...,
         description=(
-            "Pattern for this node only: sequential, parallel, or loop. 
-            "Combine patterns by nesting."
-            "WorkflowDefinition objects inside steps."
+            "Pattern for this node only: sequential, parallel, or loop. "
+            "Combine patterns by nesting WorkflowDefinition objects inside steps."
         ),
     )
     name: str = Field(..., description="Unique name for this workflow node")
@@ -86,6 +85,10 @@ class Connection(BaseModel):
 class AgentsConfig(BaseModel):
     """Root schema for agents_config.yaml."""
 
+    project: str | None = Field(
+        default=None,
+        description="Optional project id (Femverse, Wardrobe, Al-Siraat, etc.). When set, that project's memory and tools are used. ADK memory (load_memory, preload_memory) is always available to all.",
+    )
     agents: list[AgentDefinition] = Field(
         default_factory=list,
         description="All leaf agents. Referenced by name in workflow steps.",

@@ -1,7 +1,11 @@
 from __future__ import annotations
+
 import logging
 from pathlib import Path
+
 from google.adk.apps import App
+
+from projects.registry import set_current_project_id
 from schema_models import AgentsConfig
 from workflow_factory import WorkflowFactory
 
@@ -48,6 +52,9 @@ def create_app(config: AgentsConfig | None = None, config_path: str | Path | Non
     """
     if config is None:
         config = load_config(config_path)
+
+    # Set current project so memory_ingest / memory_query use project memory when registered
+    set_current_project_id(config.project)
 
     agents_by_name = {a.name: a for a in config.agents}
     factory = WorkflowFactory(

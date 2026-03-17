@@ -3,9 +3,13 @@ from dotenv import load_dotenv
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
+from projects.example_projects import register_example_projects
 from orchestrator import create_app, load_config
 
 load_dotenv()
+
+# Register projects (Femverse, Wardrobe, Al-Siraat, etc.) so config.project selects memory/tools
+register_example_projects()
 
 
 def main() -> None:

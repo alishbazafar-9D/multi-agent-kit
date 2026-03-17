@@ -71,8 +71,21 @@ class GenericDeveloperAgent(BaseAgent):
         for from_key, to_key in self.incoming_state_mappings:
             if from_key in ctx.session.state:
                 ctx.session.state[to_key] = ctx.session.state.get(from_key)
+
+        output_key = self.delegate.output_key
+        accumulated: list[str] = []
+
         async for event in self.delegate.run_async(ctx):
+            if output_key and getattr(event, "content", None) and event.content.parts and getattr(event, "author", None) == self.name:
+                for part in event.content.parts:
+                    if getattr(part, "text", None) and not getattr(part, "thought", None):
+                        accumulated.append(part.text)
             yield event
+
+        # Ensure session state is set for the next agent (runner may append
+        # state_delta only for non-partial events; writing here guarantees it).
+        if output_key and accumulated:
+            ctx.session.state[output_key] = "".join(accumulated)
 
 
 class WorkflowFactory:
