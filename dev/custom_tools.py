@@ -1,3 +1,7 @@
+"""
+Tool registry and built-in tools. Add your own tools here with @register_tool("name").
+Refer to tool names in dev/agents_config.yaml (agents[].tools).
+"""
 from __future__ import annotations
 
 import logging
@@ -14,20 +18,20 @@ _fallback_memory: Any = None
 def get_default_memory() -> Any:
     """
     Memory used by memory_ingest / memory_query tools.
-    - If the current project (see projects.registry) has a registered memory, that is used.
+    - If the current project (see src.projects.registry) has a registered memory, that is used.
     - Otherwise a fallback InMemoryMemory is used so tools still work without a project.
     ADK memory (load_memory, preload_memory) is separate and always available to agents via YAML.
     """
     global _fallback_memory
     try:
-        from projects.registry import get_registry
+        from src.projects.registry import get_registry
         mem = get_registry().get_current_memory()
         if mem is not None:
             return mem
     except Exception:
         pass
     if _fallback_memory is None:
-        from abstractions.in_memory_memory import InMemoryMemory
+        from src.abstractions.in_memory_memory import InMemoryMemory
         _fallback_memory = InMemoryMemory(max_entries=100)
     return _fallback_memory
 

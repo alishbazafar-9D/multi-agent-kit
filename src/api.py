@@ -10,9 +10,9 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types
 from pydantic import BaseModel, Field
 
-from orchestrator import create_app, load_config
-from projects.example_projects import register_example_projects
-from projects.registry import get_registry, set_current_project_id
+from src.orchestrator import create_app, load_config
+from dev.example_projects import register_example_projects
+from src.projects.registry import get_registry, set_current_project_id
 
 load_dotenv()
 register_example_projects()

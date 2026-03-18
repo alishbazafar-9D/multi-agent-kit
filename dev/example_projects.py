@@ -1,18 +1,19 @@
 """
-Example project registrations. Replace or extend with your own projects.
+Register your projects here (this is the only file you need to edit to add a project).
+The registry itself lives in src/projects/; you only use ProjectConfig and register_project() from there.
 
 - default: No project memory; use only ADK memory (load_memory, preload_memory).
-- femverse, wardrobe, al_siraat: Placeholders with optional in-memory fallback; replace
-  memory_factory with Graphiti, Mem0, or your own BaseMemory implementation.
+- femverse, wardrobe, al_siraat: Placeholders; replace memory_factory with Graphiti,
+  Mem0, or your own BaseMemory implementation.
 """
 
 from __future__ import annotations
 
-from projects.registry import ProjectConfig, register_project
+from src.projects.registry import ProjectConfig, register_project
 
 
 def _in_memory_factory():
-    from abstractions.in_memory_memory import InMemoryMemory
+    from src.abstractions.in_memory_memory import InMemoryMemory
     return InMemoryMemory(max_entries=200)
 
 

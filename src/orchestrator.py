@@ -5,9 +5,9 @@ from pathlib import Path
 
 from google.adk.apps import App
 
-from projects.registry import set_current_project_id
-from schema_models import AgentsConfig
-from workflow_factory import WorkflowFactory
+from src.projects.registry import set_current_project_id
+from src.schema_models import AgentsConfig
+from src.workflow_factory import WorkflowFactory
 
 logger = logging.getLogger(__name__)
 
@@ -15,15 +15,16 @@ DEFAULT_CONFIG_PATH = "agents_config.yaml"
 
 
 def load_config(path: str | Path | None = None) -> AgentsConfig:
-    """Load and validate config from path. If path is None, looks for agents_config.yaml next to this module."""
+    """Load and validate config from path. If path is None, looks for dev/agents_config.yaml."""
     path = Path(path) if path else None
     if path is None:
-        base_dir = Path(__file__).resolve().parent
-        candidate = base_dir / DEFAULT_CONFIG_PATH
+        # Default: dev/agents_config.yaml (repo root is parent of src/)
+        repo_root = Path(__file__).resolve().parent.parent
+        candidate = repo_root / "dev" / DEFAULT_CONFIG_PATH
         if not candidate.exists():
             raise FileNotFoundError(
-                f"No config file found. Expected {DEFAULT_CONFIG_PATH} in {base_dir}. "
-                "Set path explicitly or create agents_config.yaml."
+                f"No config file found. Expected dev/{DEFAULT_CONFIG_PATH} in {repo_root}. "
+                "Set path explicitly or create dev/agents_config.yaml."
             )
         path = candidate
     path = Path(path)

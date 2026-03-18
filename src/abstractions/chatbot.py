@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from abstractions.llm import BaseLLM
-from abstractions.memory import BaseMemory
+from src.abstractions.llm import BaseLLM
+from src.abstractions.memory import BaseMemory
 
 
 class BaseChatbot(ABC):

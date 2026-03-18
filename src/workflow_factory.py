@@ -1,3 +1,7 @@
+"""
+Builds the agent tree from dev/agents_config.yaml (sequential/parallel/loop and leaf agents).
+Core logic; you don't need to edit this—change the YAML instead.
+"""
 from __future__ import annotations
 
 import importlib
@@ -13,8 +17,9 @@ from google.adk.agents.parallel_agent import ParallelAgent
 from google.adk.agents.sequential_agent import SequentialAgent
 from google.adk.events.event import Event
 from typing_extensions import override
-from custom_tools import get_tool
-from schema_models import AgentDefinition, Connection, WorkflowDefinition
+
+from dev.custom_tools import get_tool
+from src.schema_models import AgentDefinition, Connection, WorkflowDefinition
 
 logger = logging.getLogger(__name__)
 
